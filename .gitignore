@@ -33,6 +33,7 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+keystore.properties
 .kotlin/
 
 # node.js
@@ -73,3 +74,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Project-specific build / test artifacts
+*.apk
+*.aab
+# Scratch audio recordings (e.g. probe.m4a). Bundled songs live under android assets.
+/probe.m4a
+*.wav

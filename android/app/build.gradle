@@ -55,9 +55,28 @@ react {
 }
 
 /**
- * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ * Set this to true to Run Proguard/R8 on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
+
+/**
+ * Release signing. Reads android/keystore.properties (gitignored) if present:
+ *   storeFile=release.keystore
+ *   storePassword=...
+ *   keyAlias=...
+ *   keyPassword=...
+ * Generate a keystore with:
+ *   keytool -genkeypair -v -keystore android/app/release.keystore \
+ *     -alias music -keyalg RSA -keysize 2048 -validity 10000
+ * If the file is absent, release builds fall back to the debug keystore (so the
+ * build still works locally / in CI for verification — NOT for store upload).
+ */
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -85,6 +104,13 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    // Phase 0: custom C++ build (Oboe + JSI audio engine). Overrides the default
+    // RN app CMake so we can link Oboe and our own native sources under cpp/.
+    externalNativeBuild {
+        cmake {
+            path "src/main/jni/CMakeLists.txt"
+        }
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -92,16 +118,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Real signing when android/keystore.properties exists; otherwise the
+            // debug keystore so local/CI release builds still complete (do NOT
+            // upload a debug-signed bundle to the Play Store).
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
@@ -110,6 +146,10 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    // Oboe — Google's low-latency Android audio (AAudio/OpenSL ES). Consumed as a
+    // prefab package; CMake links it via find_package(oboe). See PIANO_APP_ROADMAP.md §2.
+    implementation("com.google.oboe:oboe:1.10.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
