@@ -26,6 +26,7 @@ class NativeAudioEngine
   void setMasterGain(jsi::Runtime& rt, double gain);
   void setProgram(jsi::Runtime& rt, double preset);
   void setSustain(jsi::Runtime& rt, bool on);
+  void setReleaseTime(jsi::Runtime& rt, double seconds);
 };
 
 } // namespace facebook::react

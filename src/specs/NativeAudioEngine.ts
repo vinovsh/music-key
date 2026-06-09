@@ -23,6 +23,11 @@ export interface Spec extends TurboModule {
   setProgram(preset: number): void;
   /** Sustain pedal: when on, released notes ring until sustain is turned off. */
   setSustain(on: boolean): void;
+  /**
+   * Ring-out: the amp-envelope release (seconds) the synth applies to each voice
+   * on note-off, so "Ring time" controls the fade-out for any instrument.
+   */
+  setReleaseTime(seconds: number): void;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('NativeAudioEngine');

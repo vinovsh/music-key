@@ -8,11 +8,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { zustandStorage } from '../services/storage';
-import { setMasterGain } from '../audio/audio';
+import { setMasterGain, setReleaseTime } from '../audio/audio';
 import type { Notation } from '../domain/notes';
 
 export const RING_MIN = 0.25; // seconds
 export const RING_MAX = 3.0;
+// Short, click-free release used when Sustain is off (note stops promptly).
+const OFF_RELEASE_SEC = 0.06;
+
+// The synth's amp-envelope release = Ring time when sustaining, else a quick stop.
+function releaseFor(sustain: boolean, ringSec: number): number {
+  return sustain ? ringSec : OFF_RELEASE_SEC;
+}
 
 interface SettingsState {
   volume: number; // 0..1
@@ -33,7 +40,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       volume: 0.8, // matches the reference (80%)
       speed: 1.0,
       notation: 'western',
@@ -50,10 +57,18 @@ export const useSettingsStore = create<SettingsState>()(
       setNotation: (n) => set({ notation: n }),
       setShowLabels: (b) => set({ showLabels: b }),
       setTranspose: (t) => set({ transpose: Math.max(-12, Math.min(12, Math.round(t))) }),
-      // Sustain + ring-out are applied in the performer (JS-timed noteOff), not
-      // the synth pedal, so the tail is a precise number of seconds.
-      setSustain: (b) => set({ sustain: b }),
-      setRingSec: (s) => set({ ringSec: Math.max(RING_MIN, Math.min(RING_MAX, s)) }),
+      // Ring-out is the synth's amp-envelope release (setReleaseTime), so the
+      // fade-out length tracks Ring time for every instrument. Sustain off = a
+      // quick, click-free stop.
+      setSustain: (b) => {
+        setReleaseTime(releaseFor(b, get().ringSec));
+        set({ sustain: b });
+      },
+      setRingSec: (s) => {
+        const ringSec = Math.max(RING_MIN, Math.min(RING_MAX, s));
+        setReleaseTime(releaseFor(get().sustain, ringSec));
+        set({ ringSec });
+      },
     }),
     {
       name: 'settings',
@@ -82,6 +97,7 @@ export const useSettingsStore = create<SettingsState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           setMasterGain(state.volume);
+          setReleaseTime(releaseFor(state.sustain, state.ringSec));
         }
       },
     },

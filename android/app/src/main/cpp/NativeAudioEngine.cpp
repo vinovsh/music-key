@@ -32,4 +32,8 @@ void NativeAudioEngine::setSustain(jsi::Runtime& /*rt*/, bool on) {
   AudioEngine::instance().setSustain(on);
 }
 
+void NativeAudioEngine::setReleaseTime(jsi::Runtime& /*rt*/, double seconds) {
+  AudioEngine::instance().setReleaseTime(static_cast<float>(seconds));
+}
+
 } // namespace facebook::react

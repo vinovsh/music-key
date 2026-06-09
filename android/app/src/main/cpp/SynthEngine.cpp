@@ -74,9 +74,25 @@ void SynthEngine::drainEvents(tsf* f) {
       case EventType::NoteOn:
         tsf_channel_note_on(f, 0, e.i0, e.f0);
         break;
-      case EventType::NoteOff:
+      case EventType::NoteOff: {
+        // Override each matching voice's amp-envelope release so "Ring time"
+        // governs the fade-out for any instrument (incl. decaying ones like
+        // piano). Audio-thread safe: `parameters` is a per-voice COPY (see
+        // tsf_voice_envelope_setup) — no alloc/lock/JNI/log here.
+        const float rel = releaseSec_.load(std::memory_order_relaxed);
+        if (rel > 0.0f) {
+          for (struct tsf_voice* v = f->voices, *vEnd = v + f->voiceNum;
+               v != vEnd; ++v) {
+            if (v->playingPreset != -1 && v->playingChannel == 0 &&
+                v->playingKey == e.i0 &&
+                v->ampenv.segment < TSF_SEGMENT_RELEASE) {
+              v->ampenv.parameters.release = rel;
+            }
+          }
+        }
         tsf_channel_note_off(f, 0, e.i0);
         break;
+      }
       case EventType::Program:
         tsf_channel_set_presetnumber(f, 0, e.i0, 0);
         break;

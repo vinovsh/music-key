@@ -31,3 +31,8 @@ export function setProgram(preset: number): void {
 export function setSustain(on: boolean): void {
   NativeAudioEngine.setSustain(on);
 }
+
+/** Ring-out: amp-envelope release applied on note-off, in seconds. */
+export function setReleaseTime(seconds: number): void {
+  NativeAudioEngine.setReleaseTime(seconds);
+}

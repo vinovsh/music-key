@@ -53,6 +53,12 @@ class SynthEngine {
   void setMasterGain(float gain) {  // 0..1 (linear)
     masterGain_.store(gain, std::memory_order_relaxed);
   }
+  // Ring-out: amp-envelope release (seconds) applied to each voice on note-off,
+  // so "Ring time" controls the fade-out for any instrument. 0 = use the SF2's
+  // own release. Plain atomic (read on the audio thread); not RT-critical to set.
+  void setReleaseTime(float seconds) {
+    releaseSec_.store(seconds, std::memory_order_relaxed);
+  }
 
   // --- Audio thread ---
   // Render `numFrames` of interleaved stereo audio into `out`. `channelCount`
@@ -76,6 +82,7 @@ class SynthEngine {
 
   std::atomic<tsf*> synth_{nullptr};
   std::atomic<float> masterGain_{1.0f};
+  std::atomic<float> releaseSec_{0.0f};  // 0 = use the SF2 region's own release
 
   Event queue_[kQueueCapacity];
   std::atomic<size_t> head_{0};  // consumer index (audio thread)
