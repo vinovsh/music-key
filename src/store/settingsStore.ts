@@ -12,7 +12,7 @@ import { setMasterGain, setReleaseTime } from '../audio/audio';
 import type { Notation } from '../domain/notes';
 
 export const RING_MIN = 0.25; // seconds
-export const RING_MAX = 3.0;
+export const RING_MAX = 6.0;
 // Short, click-free release used when Sustain is off (note stops promptly).
 const OFF_RELEASE_SEC = 0.06;
 
@@ -21,7 +21,7 @@ function releaseFor(sustain: boolean, ringSec: number): number {
   return sustain ? ringSec : OFF_RELEASE_SEC;
 }
 
-interface SettingsState {
+interface SettingsValues {
   volume: number; // 0..1
   speed: number; // playback tempo multiplier (1.0 = original)
   notation: Notation;
@@ -29,6 +29,21 @@ interface SettingsState {
   transpose: number; // semitones, -12..+12
   sustain: boolean; // when on, a released note rings out for `ringSec`
   ringSec: number; // ring-out tail after key release, in seconds
+}
+
+// Single source of truth for default values — used for the initial state AND the
+// "Reset to defaults" action so they can never drift apart.
+const DEFAULTS: SettingsValues = {
+  volume: 0.6, // default 60%
+  speed: 1.0, // normal tempo
+  notation: 'western',
+  showLabels: true,
+  transpose: 0,
+  sustain: true, // default ON: released notes ring out
+  ringSec: 3.0, // default 3s ring-out tail
+};
+
+interface SettingsState extends SettingsValues {
   setVolume: (v: number) => void;
   setSpeed: (s: number) => void;
   setNotation: (n: Notation) => void;
@@ -36,18 +51,13 @@ interface SettingsState {
   setTranspose: (t: number) => void;
   setSustain: (b: boolean) => void;
   setRingSec: (s: number) => void;
+  resetToDefaults: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
-      volume: 0.8, // matches the reference (80%)
-      speed: 1.0,
-      notation: 'western',
-      showLabels: true,
-      transpose: 0,
-      sustain: true, // default ON: released notes ring out
-      ringSec: 1.0, // default 1s ring-out tail
+      ...DEFAULTS,
       setVolume: (v) => {
         const clamped = Math.max(0, Math.min(1, v));
         setMasterGain(clamped);
@@ -69,17 +79,24 @@ export const useSettingsStore = create<SettingsState>()(
         setReleaseTime(releaseFor(get().sustain, ringSec));
         set({ ringSec });
       },
+      // Restore every setting to its default and re-apply engine-affecting ones.
+      resetToDefaults: () => {
+        setMasterGain(DEFAULTS.volume);
+        setReleaseTime(releaseFor(DEFAULTS.sustain, DEFAULTS.ringSec));
+        set({ ...DEFAULTS });
+      },
     }),
     {
       name: 'settings',
       storage: zustandStorage,
-      version: 1,
-      // v1: sustain now defaults ON — flip it on for pre-v1 persisted stores so
-      // existing installs match the new default (one-time).
+      version: 2,
       migrate: (persisted, version) => {
         const s = persisted as Partial<SettingsState> | undefined;
-        if (version < 1 && s) {
-          s.sustain = true;
+        if (s) {
+          // v1: sustain now defaults ON — flip it on for pre-v1 stores.
+          if (version < 1) s.sustain = true;
+          // v2: reset playback speed to normal (1.0×) for existing installs.
+          if (version < 2) s.speed = 1.0;
         }
         return s as SettingsState;
       },

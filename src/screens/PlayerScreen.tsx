@@ -4,7 +4,7 @@
  * Still no recording/songs/ads (Phases 3–5). Fullscreen hides the chrome and
  * leaves the keyboard + a slim nav strip (so you can exit fullscreen).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Keyboard from '../components/keyboard/Keyboard';
@@ -36,6 +36,12 @@ function PlayerScreen() {
   const [recordingsOpen, setRecordingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // SEQUENCE arrows: nudge the visible window left/right by a few white keys.
+  const nudgeSequence = useCallback((dir: number) => {
+    const st = useKeyboardStore.getState();
+    st.setWindowStart(st.windowStart + dir * 4);
+  }, []);
+
   // Push the initial volume + instrument to the engine once on mount (engine
   // starts at unity gain / default preset; align it to the UI state).
   useEffect(() => {
@@ -57,50 +63,67 @@ function PlayerScreen() {
           uses the whole screen (the bar reappears transiently on edge swipe). */}
       <StatusBar hidden barStyle="light-content" />
       {!fullscreen && (
-        <>
-          <View style={styles.topBar}>
-            <Text style={styles.brand}>
-              Piano<Text style={styles.accent}> · Phase 5</Text>
-            </Text>
-
-            <View style={styles.recBtnWrap}>
-              <SoundRecordButton />
-            </View>
-
-            <Pressable style={styles.listBtn} onPress={() => setRecordingsOpen(true)}>
-              <Text style={styles.listBtnText}>☰ LIST</Text>
-            </Pressable>
-
-            {/* Volume + Speed now live in the Settings (gear) menu. */}
-            <View style={styles.topBarSpacer} />
-
-            <View style={styles.songControlWrap}>
-              <SongControl />
-            </View>
-
-            <Pressable style={styles.gearBtn} onPress={() => setSettingsOpen(true)}>
-              <Text style={styles.gearText}>⚙</Text>
-            </Pressable>
+        <View style={styles.topBar}>
+          <View style={styles.recBtnWrap}>
+            <SoundRecordButton />
           </View>
 
-          <View style={styles.instrumentRow}>
+          <Pressable style={styles.listBtn} onPress={() => setRecordingsOpen(true)}>
+            <Text style={styles.listBtnText}>☰ LIST</Text>
+          </Pressable>
+
+          <View style={styles.instrumentsWrap}>
             <InstrumentSelector />
-            <NotationToggle />
           </View>
-        </>
+
+          <View style={styles.topBarSpacer} />
+
+          <View style={styles.songControlWrap}>
+            <SongControl />
+          </View>
+
+          <Pressable style={styles.gearBtn} onPress={() => setSettingsOpen(true)}>
+            <Text style={styles.gearText}>⚙</Text>
+          </Pressable>
+        </View>
       )}
 
-      {/* Navigation strip: record/play + mini-keyboard + key-size/fullscreen. */}
+      {/* Row 2: RECORD KEYS · SEQUENCE (‹ strip ›) · KEY SIZE · SHOW NOTES. */}
       <View style={styles.navStrip}>
         {!fullscreen && (
           <View style={styles.recWrap}>
             <RecordKeysControls />
           </View>
         )}
-        <View style={styles.miniWrap}>
-          <MiniKeyboard />
+
+        <View style={styles.seqCard}>
+          {!fullscreen && <Text style={styles.seqCaption}>SEQUENCE</Text>}
+          <View style={styles.seqRow}>
+            {!fullscreen && (
+              <Pressable style={styles.seqArrow} onPress={() => nudgeSequence(-1)}>
+                <Text style={styles.seqArrowText}>‹</Text>
+              </Pressable>
+            )}
+            <View style={styles.miniWrap}>
+              <MiniKeyboard />
+            </View>
+            {!fullscreen && (
+              <Pressable style={styles.seqArrow} onPress={() => nudgeSequence(1)}>
+                <Text style={styles.seqArrowText}>›</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
-        <ZoomControls />
+
+        <View style={styles.zoomWrap}>
+          <ZoomControls />
+        </View>
+
+        {!fullscreen && (
+          <View style={styles.notationWrap}>
+            <NotationToggle />
+          </View>
+        )}
       </View>
 
       <View style={styles.keyboardWrap}>
@@ -108,14 +131,6 @@ function PlayerScreen() {
       </View>
 
       {!fullscreen && <AdBanner />}
-
-      {fullscreen && (
-        <Pressable
-          style={styles.exitFs}
-          onPress={() => useKeyboardStore.getState().toggleFullscreen()}>
-          <Text style={styles.exitFsText}>✕</Text>
-        </Pressable>
-      )}
 
       <RecordingsModal
         visible={recordingsOpen}
@@ -129,8 +144,6 @@ function PlayerScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 12 },
   topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  brand: { color: colors.text, fontSize: 17, fontWeight: '800', marginRight: 12 },
-  accent: { color: colors.accent },
   listBtn: {
     backgroundColor: colors.panel,
     borderWidth: 1,
@@ -142,6 +155,7 @@ const styles = StyleSheet.create({
   },
   listBtnText: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   recBtnWrap: { marginRight: 10 },
+  instrumentsWrap: { marginRight: 12 },
   topBarSpacer: { flex: 1 },
   songControlWrap: { marginLeft: 12 },
   gearBtn: {
@@ -157,37 +171,47 @@ const styles = StyleSheet.create({
   },
   gearText: { color: colors.textDim, fontSize: 18 },
 
-  instrumentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-
   navStrip: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     marginBottom: 8,
   },
-  recWrap: { marginRight: 12 },
-  miniWrap: { flex: 1, marginRight: 12 },
-
-  keyboardWrap: { flex: 1 },
-
-  exitFs: {
-    position: 'absolute',
-    top: 6,
-    right: 12,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  recWrap: { marginRight: 10 },
+  // SEQUENCE card grows to fill the middle; holds the arrows + mini-keyboard.
+  seqCard: {
+    flex: 1,
     backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    justifyContent: 'center',
+  },
+  seqCaption: {
+    color: colors.textFaint,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+  seqRow: { flexDirection: 'row', alignItems: 'center' },
+  miniWrap: { flex: 1, marginHorizontal: 8 },
+  seqArrow: {
+    width: 28,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: colors.keyboardBg,
     borderWidth: 1,
     borderColor: colors.panelBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exitFsText: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  seqArrowText: { color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 20 },
+  zoomWrap: { marginLeft: 10 },
+  notationWrap: { marginLeft: 10 },
+
+  keyboardWrap: { flex: 1 },
 });
 
 export default PlayerScreen;

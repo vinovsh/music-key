@@ -55,33 +55,42 @@ function RecordKeysControls() {
   const canPlay = recordings.length > 0 && !isRecording;
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.card}>
       <Text style={styles.caption}>RECORD KEYS</Text>
+      <View style={styles.controls}>
+        <Pressable onPress={onRec} style={[styles.btn, isRecording && styles.recActive]}>
+          <View style={[styles.recDot, isRecording && styles.recDotActive]} />
+        </Pressable>
 
-      <Pressable onPress={onRec} style={[styles.btn, isRecording && styles.recActive]}>
-        <View style={[styles.recDot, isRecording && styles.recDotActive]} />
-      </Pressable>
+        <Pressable
+          onPress={onPlay}
+          disabled={!canPlay}
+          style={[styles.btn, !canPlay && styles.btnDisabled, playing && styles.playActive]}>
+          <Text style={styles.playGlyph}>{playing ? '■' : '▶'}</Text>
+        </Pressable>
 
-      <Pressable
-        onPress={onPlay}
-        disabled={!canPlay}
-        style={[styles.btn, !canPlay && styles.btnDisabled, playing && styles.playActive]}>
-        <Text style={styles.playGlyph}>{playing ? '■' : '▶'}</Text>
-      </Pressable>
-
-      {isRecording && <Text style={styles.timer}>{formatDuration(elapsed)}</Text>}
+        {isRecording && <Text style={styles.timer}>{formatDuration(elapsed)}</Text>}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center' },
+  card: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  controls: { flexDirection: 'row', alignItems: 'center' },
   caption: {
     color: colors.textFaint,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
-    marginRight: 8,
+    marginBottom: 5,
   },
   btn: {
     width: 34,

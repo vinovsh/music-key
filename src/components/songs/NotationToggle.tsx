@@ -18,7 +18,7 @@ function NotationToggle() {
   const setNotation = useSettingsStore((s) => s.setNotation);
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.card}>
       <Text style={styles.caption}>SHOW NOTES</Text>
       <View style={styles.group}>
         {OPTIONS.map((o) => {
@@ -40,17 +40,24 @@ function NotationToggle() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center' },
+  card: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   caption: {
     color: colors.textFaint,
     fontSize: 10,
     fontWeight: '700',
-    marginRight: 8,
+    marginBottom: 5,
     letterSpacing: 1,
   },
   group: {
     flexDirection: 'row',
-    backgroundColor: colors.panel,
+    backgroundColor: colors.keyboardBg,
     borderRadius: 9,
     borderWidth: 1,
     borderColor: colors.panelBorder,

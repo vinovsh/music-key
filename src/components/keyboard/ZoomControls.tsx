@@ -14,31 +14,41 @@ function ZoomControls() {
   const toggleFullscreen = useKeyboardStore((s) => s.toggleFullscreen);
 
   return (
-    <View style={styles.row}>
+    <View style={styles.card}>
       <Text style={styles.caption}>KEY SIZE</Text>
-      <Pressable style={styles.btn} onPress={zoomOut}>
-        <Text style={styles.btnText}>−</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.btn, fullscreen && styles.btnActive]}
-        onPress={toggleFullscreen}>
-        <Text style={styles.btnText}>⛶</Text>
-      </Pressable>
-      <Pressable style={styles.btn} onPress={zoomIn}>
-        <Text style={styles.btnText}>+</Text>
-      </Pressable>
+      <View style={styles.controls}>
+        <Pressable style={styles.btn} onPress={zoomOut}>
+          <Text style={styles.btnText}>−</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.btn, fullscreen && styles.btnActive]}
+          onPress={toggleFullscreen}>
+          <Text style={styles.btnText}>⛶</Text>
+        </Pressable>
+        <Pressable style={styles.btn} onPress={zoomIn}>
+          <Text style={styles.btnText}>+</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  card: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  controls: { flexDirection: 'row', alignItems: 'center' },
   caption: {
     color: colors.textFaint,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
-    marginRight: 8,
+    marginBottom: 5,
   },
   btn: {
     width: 34,

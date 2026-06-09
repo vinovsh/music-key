@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import Slider from '../controls/Slider';
 import SliderValueLabel from '../controls/SliderValueLabel';
@@ -30,7 +30,7 @@ function fmtSpeed(v: number) {
 }
 function fmtRing(v: number) {
   'worklet';
-  return `${(0.25 + v * 2.75).toFixed(1)}s`; // RING_MIN 0.25 .. RING_MAX 3.0
+  return `${(0.25 + v * 5.75).toFixed(1)}s`; // RING_MIN 0.25 .. RING_MAX 6.0
 }
 
 function SettingsModal({ visible, onClose }: Props) {
@@ -50,6 +50,7 @@ function SettingsModal({ visible, onClose }: Props) {
   const setSustain = useSettingsStore((s) => s.setSustain);
   const ringSec = useSettingsStore((s) => s.ringSec);
   const setRingSec = useSettingsStore((s) => s.setRingSec);
+  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
 
   const ringProgress = useSharedValue((ringSec - RING_MIN) / RING_SPAN);
 
@@ -62,6 +63,9 @@ function SettingsModal({ visible, onClose }: Props) {
       <GestureHandlerRootView style={styles.gestureRoot}>
         <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable style={styles.sheet} onPress={() => {}}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
             <Pressable onPress={onClose} style={styles.closeBtn}>
@@ -160,6 +164,13 @@ function SettingsModal({ visible, onClose }: Props) {
             Audio runs in low-latency mode (Oboe, exclusive stream). Tap-to-sound goes
             through JSI synchronously.
           </Text>
+
+          <Pressable
+            style={({ pressed }) => [styles.resetBtn, pressed && styles.resetBtnPressed]}
+            onPress={resetToDefaults}>
+            <Text style={styles.resetText}>Reset to defaults</Text>
+          </Pressable>
+          </ScrollView>
           </Pressable>
         </Pressable>
       </GestureHandlerRootView>
@@ -178,12 +189,14 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '60%',
+    maxHeight: '92%', // scroll within the sheet on short (landscape) screens
     backgroundColor: colors.panel,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.panelBorder,
     padding: 18,
   },
+  scrollContent: { paddingBottom: 4 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -249,6 +262,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   note: { color: colors.textFaint, fontSize: 11, marginTop: 14, lineHeight: 16 },
+  resetBtn: {
+    marginTop: 16,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.keyboardBg,
+  },
+  resetBtnPressed: { backgroundColor: colors.panelBorder },
+  resetText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });
 
 export default React.memo(SettingsModal);
