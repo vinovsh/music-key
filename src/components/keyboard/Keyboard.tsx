@@ -4,6 +4,12 @@
  * LATENCY (CLAUDE.md §1): touch handlers call noteOn/noteOff DIRECTLY (synchronous
  * JSI into C++). The visual "glow" uses React state and is allowed to lag a frame.
  *
+ * SCROLLING: the full white-key range (C2–C7) is rendered once at a fixed key
+ * width (= viewport / visibleWhite) and translated horizontally by a shared
+ * value (`scrollIndex`), so the mini-keyboard can slide it smoothly on the UI
+ * thread. The touch overlay stays fixed over the viewport; hit-testing simply
+ * adds the current scroll offset, so input stays trivial and rock-solid.
+ *
  * Input model: a single transparent overlay claims the responder and we reconcile
  * the full live touch list every event. This gives us, uniformly:
  *   - chords (multiple simultaneous pointers, each its own note),
@@ -19,16 +25,18 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { playNoteOff, playNoteOn } from '../../audio/performer';
 import { usePlaybackStore } from '../../store/playbackStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { colors } from '../../theme/colors';
 import {
-  isC,
-  noteLabel,
-  whiteKeysInRange,
-  type Notation,
-} from '../../domain/notes';
+  FULL_WHITE_KEYS,
+  TOTAL_WHITE,
+  useKeyboardStore,
+} from '../../store/keyboardStore';
+import { scrollIndex } from '../../store/keyboardScroll';
+import { colors } from '../../theme/colors';
+import { isC, noteLabel, type Notation } from '../../domain/notes';
 
 const BLACK_WIDTH_RATIO = 0.62; // black key width relative to a white key
 const BLACK_HEIGHT_RATIO = 0.62; // black key height relative to keyboard height
@@ -40,70 +48,75 @@ interface BlackKeyGeom {
 }
 
 interface Props {
-  lowMidi: number;
-  highMidi: number;
   notation: Notation;
 }
 
-function Keyboard({ lowMidi, highMidi, notation }: Props) {
+function Keyboard({ notation }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [active, setActive] = useState<ReadonlySet<number>>(new Set());
   // Notes lit by song auto-play (separate from touch-driven glow).
   const playbackActive = usePlaybackStore((s) => s.active);
   const transpose = useSettingsStore((s) => s.transpose);
   const showLabels = useSettingsStore((s) => s.showLabels);
+  const visibleWhite = useKeyboardStore((s) => s.visibleWhite);
 
   // pointer id -> { visual key (for glow), sounding pitch (for the engine) }
   const pointerMap = useRef<Map<number, { visual: number; sound: number }>>(new Map());
   // sounding pitch -> how many fingers are holding it (ref-counted note on/off)
   const noteCounts = useRef<Map<number, number>>(new Map());
 
-  const whiteKeys = useMemo(
-    () => whiteKeysInRange(lowMidi, highMidi),
-    [lowMidi, highMidi],
-  );
-
-  const whiteWidth = size.width > 0 ? size.width / whiteKeys.length : 0;
+  // Fixed key width so `visibleWhite` keys fill the viewport; the full row is
+  // wider than the viewport and gets translated to scroll.
+  const keyWidth = size.width > 0 && visibleWhite > 0 ? size.width / visibleWhite : 0;
+  const rowWidth = keyWidth * TOTAL_WHITE;
   const blackHeight = size.height * BLACK_HEIGHT_RATIO;
 
-  // Geometry for black keys: centred on the boundary above their left white key.
+  // Geometry for black keys across the FULL range (absolute row coordinates).
   const blackKeys = useMemo<BlackKeyGeom[]>(() => {
-    if (whiteWidth <= 0) return [];
+    if (keyWidth <= 0) return [];
     const out: BlackKeyGeom[] = [];
-    const width = whiteWidth * BLACK_WIDTH_RATIO;
-    for (let i = 0; i < whiteKeys.length - 1; i++) {
-      const w = whiteKeys[i];
-      const next = whiteKeys[i + 1];
+    const width = keyWidth * BLACK_WIDTH_RATIO;
+    for (let i = 0; i < FULL_WHITE_KEYS.length - 1; i++) {
+      const w = FULL_WHITE_KEYS[i];
+      const next = FULL_WHITE_KEYS[i + 1];
       // A black key exists between two white keys only when they're 2 semitones
       // apart (e.g. C->D has C#; E->F are adjacent, no black key).
       if (next - w === 2) {
-        const boundary = (i + 1) * whiteWidth;
+        const boundary = (i + 1) * keyWidth;
         out.push({ midi: w + 1, left: boundary - width / 2, width });
       }
     }
     return out;
-  }, [whiteKeys, whiteWidth]);
+  }, [keyWidth]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setSize({ width, height });
   }, []);
 
+  // Slide the key row by the live scroll offset (UI thread).
+  const rowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -scrollIndex.value * keyWidth }],
+  }));
+
   // --- hit testing -----------------------------------------------------------
+  // The overlay is fixed over the viewport, so add the current scroll offset to
+  // map a viewport touch to an absolute key in the full row.
   const midiAt = useCallback(
     (x: number, y: number): number | null => {
-      if (whiteWidth <= 0) return null;
+      if (keyWidth <= 0) return null;
+      const absX = x + scrollIndex.value * keyWidth;
       if (y <= blackHeight) {
         for (const b of blackKeys) {
-          if (x >= b.left && x < b.left + b.width) return b.midi;
+          if (absX >= b.left && absX < b.left + b.width) return b.midi;
         }
       }
-      let idx = Math.floor(x / whiteWidth);
+      let idx = Math.floor(absX / keyWidth);
       if (idx < 0) idx = 0;
-      if (idx >= whiteKeys.length) idx = whiteKeys.length - 1;
-      return whiteKeys[idx];
+      if (idx >= FULL_WHITE_KEYS.length) idx = FULL_WHITE_KEYS.length - 1;
+      return FULL_WHITE_KEYS[idx];
     },
-    [whiteWidth, blackHeight, blackKeys, whiteKeys],
+    [keyWidth, blackHeight, blackKeys],
   );
 
   // --- ref-counted sound (the actual JSI calls) ------------------------------
@@ -185,42 +198,44 @@ function Keyboard({ lowMidi, highMidi, notation }: Props) {
 
   return (
     <View style={styles.container} onLayout={onLayout}>
-      {/* White keys */}
-      <View style={styles.whiteRow} pointerEvents="none">
-        {whiteKeys.map((midi) => (
-          <View
-            key={midi}
-            style={[styles.whiteKey, lit(midi) && styles.whiteKeyActive]}>
-            {showLabels && (
-              <Text
-                style={[styles.whiteLabel, isC(midi) && styles.cLabel]}
-                numberOfLines={1}>
-                {noteLabel(midi, notation)}
-              </Text>
-            )}
-          </View>
-        ))}
-      </View>
+      <Animated.View style={[styles.scrollRow, { width: rowWidth }, rowStyle]}>
+        {/* White keys (full range) */}
+        <View style={styles.whiteRow} pointerEvents="none">
+          {FULL_WHITE_KEYS.map((midi) => (
+            <View
+              key={midi}
+              style={[
+                styles.whiteKey,
+                { width: keyWidth },
+                lit(midi) && styles.whiteKeyActive,
+              ]}>
+              {showLabels && keyWidth > 0 && (
+                <Text
+                  style={[styles.whiteLabel, isC(midi) && styles.cLabel]}
+                  numberOfLines={1}>
+                  {noteLabel(midi, notation)}
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
 
-      {/* Black keys */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {blackKeys.map((b) => (
-          <View
-            key={b.midi}
-            style={[
-              styles.blackKey,
-              {
-                left: b.left,
-                width: b.width,
-                height: blackHeight,
-              },
-              lit(b.midi) && styles.blackKeyActive,
-            ]}
-          />
-        ))}
-      </View>
+        {/* Black keys (full range) */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {blackKeys.map((b) => (
+            <View
+              key={b.midi}
+              style={[
+                styles.blackKey,
+                { left: b.left, width: b.width, height: blackHeight },
+                lit(b.midi) && styles.blackKeyActive,
+              ]}
+            />
+          ))}
+        </View>
+      </Animated.View>
 
-      {/* Touch overlay: owns all input, sits above the (non-interactive) keys. */}
+      {/* Touch overlay: fixed over the viewport, owns all input. */}
       <View
         style={StyleSheet.absoluteFill}
         onStartShouldSetResponder={() => true}
@@ -241,17 +256,22 @@ function clamp01(v: number): number {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: colors.keyboardBg,
     borderRadius: 10,
     overflow: 'hidden',
   },
+  scrollRow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+  },
   whiteRow: {
-    flex: 1,
     flexDirection: 'row',
+    height: '100%',
   },
   whiteKey: {
-    flex: 1,
+    height: '100%',
     backgroundColor: colors.whiteKey,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderColor: colors.whiteKeyShadow,

@@ -10,7 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Keyboard from '../components/keyboard/Keyboard';
 import MiniKeyboard from '../components/keyboard/MiniKeyboard';
 import ZoomControls from '../components/keyboard/ZoomControls';
-import Slider from '../components/controls/Slider';
 import InstrumentSelector from '../components/instruments/InstrumentSelector';
 import NotationToggle from '../components/songs/NotationToggle';
 import SongControl from '../components/songs/SongControl';
@@ -21,21 +20,17 @@ import SettingsModal from '../components/settings/SettingsModal';
 import AdBanner from '../components/ads/AdBanner';
 import { useSettingsStore } from '../store/settingsStore';
 import { useInstrumentStore } from '../store/instrumentStore';
-import { useKeyboardStore, windowRange } from '../store/keyboardStore';
+import { useKeyboardStore } from '../store/keyboardStore';
 import { setMasterGain } from '../audio/audio';
 import { colors } from '../theme/colors';
 
 function PlayerScreen() {
   const insets = useSafeAreaInsets();
 
-  const volume = useSettingsStore((s) => s.volume);
-  const setVolume = useSettingsStore((s) => s.setVolume);
-  const speed = useSettingsStore((s) => s.speed);
-  const setSpeed = useSettingsStore((s) => s.setSpeed);
   const notation = useSettingsStore((s) => s.notation);
 
-  const visibleWhite = useKeyboardStore((s) => s.visibleWhite);
-  const windowStart = useKeyboardStore((s) => s.windowStart);
+  // The keyboard now reads zoom + scroll itself, so PlayerScreen no longer
+  // re-renders as the window moves — only fullscreen affects this layout.
   const fullscreen = useKeyboardStore((s) => s.fullscreen);
 
   const [recordingsOpen, setRecordingsOpen] = useState(false);
@@ -44,12 +39,10 @@ function PlayerScreen() {
   // Push the initial volume + instrument to the engine once on mount (engine
   // starts at unity gain / default preset; align it to the UI state).
   useEffect(() => {
-    setMasterGain(volume);
+    setMasterGain(useSettingsStore.getState().volume);
     useInstrumentStore.getState().syncToEngine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const { lowMidi, highMidi } = windowRange(visibleWhite, windowStart);
 
   return (
     <View
@@ -60,8 +53,9 @@ function PlayerScreen() {
           paddingBottom: insets.bottom + 6,
         },
       ]}>
-      {/* Fullscreen hides the system status bar so the top controls are tappable. */}
-      <StatusBar hidden={fullscreen} barStyle="light-content" />
+      {/* App runs fully immersive — the system status bar stays hidden so the UI
+          uses the whole screen (the bar reappears transiently on edge swipe). */}
+      <StatusBar hidden barStyle="light-content" />
       {!fullscreen && (
         <>
           <View style={styles.topBar}>
@@ -77,25 +71,8 @@ function PlayerScreen() {
               <Text style={styles.listBtnText}>☰ LIST</Text>
             </Pressable>
 
-            <View style={styles.settingsPanel}>
-              <View style={styles.sliderBlock}>
-                <Text style={styles.sliderLabel}>Volume</Text>
-                <View style={styles.sliderRow}>
-                  <Slider value={volume} onChange={setVolume} />
-                </View>
-                <Text style={styles.sliderValue}>{Math.round(volume * 100)}%</Text>
-              </View>
-              <View style={styles.sliderBlock}>
-                <Text style={styles.sliderLabel}>Speed</Text>
-                <View style={styles.sliderRow}>
-                  <Slider
-                    value={(speed - 0.5) / 1.5}
-                    onChange={(v) => setSpeed(0.5 + v * 1.5)}
-                  />
-                </View>
-                <Text style={styles.sliderValue}>{speed.toFixed(2)}×</Text>
-              </View>
-            </View>
+            {/* Volume + Speed now live in the Settings (gear) menu. */}
+            <View style={styles.topBarSpacer} />
 
             <View style={styles.songControlWrap}>
               <SongControl />
@@ -127,7 +104,7 @@ function PlayerScreen() {
       </View>
 
       <View style={styles.keyboardWrap}>
-        <Keyboard lowMidi={lowMidi} highMidi={highMidi} notation={notation} />
+        <Keyboard notation={notation} />
       </View>
 
       {!fullscreen && <AdBanner />}
@@ -165,6 +142,7 @@ const styles = StyleSheet.create({
   },
   listBtnText: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   recBtnWrap: { marginRight: 10 },
+  topBarSpacer: { flex: 1 },
   songControlWrap: { marginLeft: 12 },
   gearBtn: {
     width: 38,
@@ -178,26 +156,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   gearText: { color: colors.textDim, fontSize: 18 },
-  settingsPanel: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.panel,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.panelBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  sliderBlock: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  sliderLabel: { color: colors.text, fontSize: 13, fontWeight: '700', width: 52 },
-  dim: { color: colors.textFaint },
-  sliderRow: { flex: 1, marginHorizontal: 8 },
-  sliderValue: { color: colors.textDim, fontSize: 12, width: 44, textAlign: 'right' },
 
   instrumentRow: {
     flexDirection: 'row',

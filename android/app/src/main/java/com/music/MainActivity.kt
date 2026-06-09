@@ -14,22 +14,23 @@ class MainActivity : ReactActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    hideNavigationBar()
+    hideSystemBars()
   }
 
-  // Re-hide the navigation bar after the user swipes it back (sticky immersive)
+  // Re-hide the system bars after the user swipes them back (sticky immersive)
   // or after returning from another app.
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (hasFocus) hideNavigationBar()
+    if (hasFocus) hideSystemBars()
   }
 
-  // Edge-to-edge: take over the bottom system-navigation space so the keyboard
-  // uses the full screen height. The bar reappears transiently on swipe.
-  private fun hideNavigationBar() {
+  // Full immersive edge-to-edge: hide BOTH the top status bar (clock/battery/
+  // signal) and the bottom navigation bar so the app uses the entire screen.
+  // The bars reappear transiently on a swipe from the edge, then auto-hide.
+  private fun hideSystemBars() {
     WindowCompat.setDecorFitsSystemWindows(window, false)
     WindowInsetsControllerCompat(window, window.decorView).apply {
-      hide(WindowInsetsCompat.Type.navigationBars())
+      hide(WindowInsetsCompat.Type.systemBars())
       systemBarsBehavior =
           WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }

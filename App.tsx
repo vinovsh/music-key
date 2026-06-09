@@ -7,15 +7,18 @@
  */
 import React from 'react';
 import { StatusBar } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import PlayerScreen from './src/screens/PlayerScreen';
 
 function App() {
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="light-content" backgroundColor="#0c0a1a" />
-      <PlayerScreen />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar hidden barStyle="light-content" backgroundColor="#0c0a1a" />
+        <PlayerScreen />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

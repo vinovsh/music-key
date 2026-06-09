@@ -8,8 +8,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { zustandStorage } from '../services/storage';
-import { setMasterGain, setSustain as engineSetSustain } from '../audio/audio';
+import { setMasterGain } from '../audio/audio';
 import type { Notation } from '../domain/notes';
+
+export const RING_MIN = 0.25; // seconds
+export const RING_MAX = 3.0;
 
 interface SettingsState {
   volume: number; // 0..1
@@ -17,13 +20,15 @@ interface SettingsState {
   notation: Notation;
   showLabels: boolean; // note labels on the keys
   transpose: number; // semitones, -12..+12
-  sustain: boolean;
+  sustain: boolean; // when on, a released note rings out for `ringSec`
+  ringSec: number; // ring-out tail after key release, in seconds
   setVolume: (v: number) => void;
   setSpeed: (s: number) => void;
   setNotation: (n: Notation) => void;
   setShowLabels: (b: boolean) => void;
   setTranspose: (t: number) => void;
   setSustain: (b: boolean) => void;
+  setRingSec: (s: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -34,7 +39,8 @@ export const useSettingsStore = create<SettingsState>()(
       notation: 'western',
       showLabels: true,
       transpose: 0,
-      sustain: false,
+      sustain: true, // default ON: released notes ring out
+      ringSec: 1.0, // default 1s ring-out tail
       setVolume: (v) => {
         const clamped = Math.max(0, Math.min(1, v));
         setMasterGain(clamped);
@@ -44,14 +50,24 @@ export const useSettingsStore = create<SettingsState>()(
       setNotation: (n) => set({ notation: n }),
       setShowLabels: (b) => set({ showLabels: b }),
       setTranspose: (t) => set({ transpose: Math.max(-12, Math.min(12, Math.round(t))) }),
-      setSustain: (b) => {
-        engineSetSustain(b);
-        set({ sustain: b });
-      },
+      // Sustain + ring-out are applied in the performer (JS-timed noteOff), not
+      // the synth pedal, so the tail is a precise number of seconds.
+      setSustain: (b) => set({ sustain: b }),
+      setRingSec: (s) => set({ ringSec: Math.max(RING_MIN, Math.min(RING_MAX, s)) }),
     }),
     {
       name: 'settings',
       storage: zustandStorage,
+      version: 1,
+      // v1: sustain now defaults ON — flip it on for pre-v1 persisted stores so
+      // existing installs match the new default (one-time).
+      migrate: (persisted, version) => {
+        const s = persisted as Partial<SettingsState> | undefined;
+        if (version < 1 && s) {
+          s.sustain = true;
+        }
+        return s as SettingsState;
+      },
       partialize: (s) => ({
         volume: s.volume,
         speed: s.speed,
@@ -59,12 +75,13 @@ export const useSettingsStore = create<SettingsState>()(
         showLabels: s.showLabels,
         transpose: s.transpose,
         sustain: s.sustain,
+        ringSec: s.ringSec,
       }),
       // Re-apply persisted engine-affecting settings once the store rehydrates.
+      // (Sustain/ring-out need no engine call — they're handled in the performer.)
       onRehydrateStorage: () => (state) => {
         if (state) {
           setMasterGain(state.volume);
-          if (state.sustain) engineSetSustain(true);
         }
       },
     },

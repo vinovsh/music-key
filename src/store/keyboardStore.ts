@@ -42,7 +42,7 @@ function clampStart(start: number, visible: number): number {
 
 export const useKeyboardStore = create<KeyboardState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       visibleWhite: 17, // ~C3..E5 by default, like the reference
       windowStart: 7, // C3
       fullscreen: false,
@@ -57,8 +57,14 @@ export const useKeyboardStore = create<KeyboardState>()(
           const visibleWhite = clamp(s.visibleWhite + 2, MIN_VISIBLE, MAX_VISIBLE);
           return { visibleWhite, windowStart: clampStart(s.windowStart, visibleWhite) };
         }),
-      setWindowStart: (i) =>
-        set((s) => ({ windowStart: clampStart(Math.round(i), s.visibleWhite) })),
+      setWindowStart: (i) => {
+        // Skip no-op moves: the window snaps to integer white-key steps, so a
+        // drag fires this ~60×/s but most land on the same index. Bailing out
+        // avoids a needless re-render + AsyncStorage write per move (the lag).
+        const { windowStart, visibleWhite } = get();
+        const next = clampStart(Math.round(i), visibleWhite);
+        if (next !== windowStart) set({ windowStart: next });
+      },
       toggleFullscreen: () => set((s) => ({ fullscreen: !s.fullscreen })),
     }),
     {
