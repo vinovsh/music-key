@@ -4,6 +4,12 @@
  * LATENCY (CLAUDE.md §1): touch handlers call noteOn/noteOff DIRECTLY (synchronous
  * JSI into C++). The visual "glow" uses React state and is allowed to lag a frame.
  *
+ * LOOK: each key is a 3D-shaded stack of Views (top sheen + body + bottom front
+ * lip/bevel) and presses with a snappy "click" — the key face dips down and an
+ * accent glow blooms in (Reanimated, UI thread). All of this is purely visual and
+ * never gates the sound (CLAUDE.md §1). Keys are memoized so a single press only
+ * re-renders the pressed key, not the whole row (CLAUDE.md §6).
+ *
  * SCROLLING: the full white-key range (C2–C7) is rendered once at a fixed key
  * width (= viewport / visibleWhite) and translated horizontally by a shared
  * value (`scrollIndex`), so the mini-keyboard can slide it smoothly on the UI
@@ -17,7 +23,7 @@
  *   - clean release of individual fingers.
  * Notes are ref-counted so two fingers on one key don't cut each other off.
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   LayoutChangeEvent,
@@ -25,7 +31,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { playNoteOff, playNoteOn } from '../../audio/performer';
 import { usePlaybackStore } from '../../store/playbackStore';
 import { useSettingsStore } from '../../store/settingsStore';
@@ -41,6 +52,9 @@ import { isC, noteLabel, type Notation } from '../../domain/notes';
 const BLACK_WIDTH_RATIO = 0.62; // black key width relative to a white key
 const BLACK_HEIGHT_RATIO = 0.62; // black key height relative to keyboard height
 
+const WHITE_PRESS_DEPTH = 5; // px the white key face dips when pressed
+const BLACK_PRESS_DEPTH = 4; // px the black key face dips when pressed
+
 interface BlackKeyGeom {
   midi: number;
   left: number;
@@ -50,6 +64,91 @@ interface BlackKeyGeom {
 interface Props {
   notation: Notation;
 }
+
+/**
+ * Drives a 0→1 "pressed" shared value with a crisp click: fast on the way down,
+ * slightly softer on release. Runs on the UI thread (Reanimated).
+ */
+function usePressProgress(pressed: boolean) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withTiming(pressed ? 1 : 0, { duration: pressed ? 30 : 110 });
+  }, [pressed, p]);
+  return p;
+}
+
+// --- White key (ivory, 3D) ---------------------------------------------------
+interface WhiteKeyProps {
+  width: number;
+  pressed: boolean;
+  showLabel: boolean;
+  label: string;
+  isCKey: boolean;
+}
+
+const WhiteKey = React.memo(function WhiteKey({
+  width,
+  pressed,
+  showLabel,
+  label,
+  isCKey,
+}: WhiteKeyProps) {
+  const p = usePressProgress(pressed);
+  const faceStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: p.value * WHITE_PRESS_DEPTH }],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    // lip recedes as the key sinks
+    bottom: interpolate(p.value, [0, 1], [0, -2]),
+  }));
+  return (
+    <View style={[styles.whiteKey, { width }]}>
+      <Animated.View style={[styles.whiteFace, faceStyle]}>
+        <View style={styles.whiteSheen} />
+        <View style={styles.whiteLip} />
+        <Animated.View style={[styles.whiteGlow, glowStyle]} pointerEvents="none" />
+        {showLabel && (
+          <Text
+            style={[styles.whiteLabel, isCKey && styles.cLabel]}
+            numberOfLines={1}>
+            {label}
+          </Text>
+        )}
+      </Animated.View>
+    </View>
+  );
+});
+
+// --- Black key (ebony, 3D) ---------------------------------------------------
+interface BlackKeyProps {
+  left: number;
+  width: number;
+  height: number;
+  pressed: boolean;
+}
+
+const BlackKey = React.memo(function BlackKey({
+  left,
+  width,
+  height,
+  pressed,
+}: BlackKeyProps) {
+  const p = usePressProgress(pressed);
+  const faceStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: p.value * BLACK_PRESS_DEPTH }],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: p.value }));
+  return (
+    <View style={[styles.blackKey, { left, width, height }]}>
+      <Animated.View style={[styles.blackFace, faceStyle]}>
+        <View style={styles.blackSheen} />
+        <View style={styles.blackFront} />
+        <Animated.View style={[styles.blackGlow, glowStyle]} pointerEvents="none" />
+      </Animated.View>
+    </View>
+  );
+});
 
 function Keyboard({ notation }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -202,34 +301,26 @@ function Keyboard({ notation }: Props) {
         {/* White keys (full range) */}
         <View style={styles.whiteRow} pointerEvents="none">
           {FULL_WHITE_KEYS.map((midi) => (
-            <View
+            <WhiteKey
               key={midi}
-              style={[
-                styles.whiteKey,
-                { width: keyWidth },
-                lit(midi) && styles.whiteKeyActive,
-              ]}>
-              {showLabels && keyWidth > 0 && (
-                <Text
-                  style={[styles.whiteLabel, isC(midi) && styles.cLabel]}
-                  numberOfLines={1}>
-                  {noteLabel(midi, notation)}
-                </Text>
-              )}
-            </View>
+              width={keyWidth}
+              pressed={lit(midi)}
+              showLabel={showLabels && keyWidth > 0}
+              label={noteLabel(midi, notation)}
+              isCKey={isC(midi)}
+            />
           ))}
         </View>
 
         {/* Black keys (full range) */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           {blackKeys.map((b) => (
-            <View
+            <BlackKey
               key={b.midi}
-              style={[
-                styles.blackKey,
-                { left: b.left, width: b.width, height: blackHeight },
-                lit(b.midi) && styles.blackKeyActive,
-              ]}
+              left={b.left}
+              width={b.width}
+              height={blackHeight}
+              pressed={lit(b.midi)}
             />
           ))}
         </View>
@@ -270,21 +361,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: '100%',
   },
+
+  // --- White key ----------------------------------------------------------
+  // Slot is the dark recess the key sits in; the face dips into it on press.
   whiteKey: {
     height: '100%',
-    backgroundColor: colors.whiteKey,
+    backgroundColor: colors.keyboardBg,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderColor: colors.whiteKeyShadow,
+  },
+  whiteFace: {
+    flex: 1,
+    backgroundColor: colors.whiteKey,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: 8,
+    // soft drop shadow gives the key its raised feel
+    elevation: 4,
+    overflow: 'hidden',
   },
-  whiteKeyActive: {
+  // top sheen: a subtle light band across the upper portion (ivory gloss)
+  whiteSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '42%',
+    backgroundColor: '#ffffff',
+    opacity: 0.55,
+  },
+  // bottom front lip: a slightly darker rounded strip = the front face of the key
+  whiteLip: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 9,
+    backgroundColor: colors.whiteKeyShadow,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+    opacity: 0.7,
+  },
+  // accent bloom shown while held
+  whiteGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.whiteKeyActive,
-    borderColor: colors.accent,
-    borderRightWidth: 2,
-    borderLeftWidth: 2,
-    elevation: 6,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
   },
   whiteLabel: {
     fontSize: 11,
@@ -295,19 +424,58 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '800',
   },
+
+  // --- Black key ----------------------------------------------------------
   blackKey: {
     position: 'absolute',
     top: 0,
+    backgroundColor: '#000',
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+    overflow: 'hidden',
+  },
+  blackFace: {
+    flex: 1,
     backgroundColor: colors.blackKey,
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
     borderWidth: 1,
     borderColor: '#000',
+    elevation: 7,
+    overflow: 'hidden',
   },
-  blackKeyActive: {
+  // glossy highlight near the top of the ebony key
+  blackSheen: {
+    position: 'absolute',
+    top: 0,
+    left: '14%',
+    right: '14%',
+    height: '34%',
+    backgroundColor: '#5a5470',
+    opacity: 0.5,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  // raised front face at the bottom (the bevel that catches the light)
+  blackFront: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 10,
+    backgroundColor: '#34303f',
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+  },
+  blackGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.blackKeyActive,
-    borderColor: '#ffffff',
-    elevation: 8,
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
   },
 });
 
