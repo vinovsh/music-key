@@ -62,6 +62,7 @@ function PlayerScreen() {
       {/* App runs fully immersive — the system status bar stays hidden so the UI
           uses the whole screen (the bar reappears transiently on edge swipe). */}
       <StatusBar hidden barStyle="light-content" />
+      {!fullscreen && <AdBanner />}
       {!fullscreen && (
         <View style={styles.topBar}>
           <View style={styles.recBtnWrap}>
@@ -129,8 +130,6 @@ function PlayerScreen() {
       <View style={styles.keyboardWrap}>
         <Keyboard notation={notation} />
       </View>
-
-      {!fullscreen && <AdBanner />}
 
       <RecordingsModal
         visible={recordingsOpen}

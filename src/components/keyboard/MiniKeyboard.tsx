@@ -27,6 +27,22 @@ import { scrollActive, scrollIndex } from '../../store/keyboardScroll';
 import { isC } from '../../domain/notes';
 import { colors } from '../../theme/colors';
 
+const BLACK_WIDTH_RATIO = 0.62; // black key width relative to a white key
+const BLACK_W_PCT = (BLACK_WIDTH_RATIO / TOTAL_WHITE) * 100; // of strip width
+
+// Mini black-key positions as percentages of the strip width (centred on the
+// boundary between two white keys, just like the main keyboard).
+const MINI_BLACKS: { midi: number; leftPct: number }[] = (() => {
+  const out: { midi: number; leftPct: number }[] = [];
+  for (let i = 0; i < FULL_WHITE_KEYS.length - 1; i++) {
+    if (FULL_WHITE_KEYS[i + 1] - FULL_WHITE_KEYS[i] === 2) {
+      const boundaryPct = ((i + 1) / TOTAL_WHITE) * 100;
+      out.push({ midi: FULL_WHITE_KEYS[i] + 1, leftPct: boundaryPct - BLACK_W_PCT / 2 });
+    }
+  }
+  return out;
+})();
+
 // Touch x → leftmost-white-key index of the window, centred on the finger.
 function startFromTouch(x: number, w: number, visible: number): number {
   'worklet';
@@ -94,10 +110,24 @@ function MiniKeyboard() {
   return (
     <GestureDetector gesture={pan}>
       <View style={styles.container} onLayout={onLayout}>
-        {/* tiny key ticks */}
-        <View style={styles.ticks} pointerEvents="none">
-          {FULL_WHITE_KEYS.map((midi) => (
-            <View key={midi} style={[styles.tick, isC(midi) && styles.tickC]} />
+        {/* mini piano: white keys + black keys, matching the main keyboard */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={styles.whiteRow}>
+            {FULL_WHITE_KEYS.map((midi) => (
+              <View
+                key={midi}
+                style={[styles.whiteKey, isC(midi) && styles.whiteKeyC]}
+              />
+            ))}
+          </View>
+          {MINI_BLACKS.map((b) => (
+            <View
+              key={b.midi}
+              style={[
+                styles.blackKey,
+                { left: `${b.leftPct}%`, width: `${BLACK_W_PCT}%` },
+              ]}
+            />
           ))}
         </View>
         {/* current window highlight (driven on the UI thread) */}
@@ -114,27 +144,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.keyboardBg,
     borderWidth: 1,
     borderColor: colors.panelBorder,
-    justifyContent: 'center',
     overflow: 'hidden',
   },
-  ticks: {
+  whiteRow: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  whiteKey: {
+    flex: 1,
+    height: '100%',
+    backgroundColor: colors.whiteKey,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.whiteKeyShadow,
+  },
+  // a subtle accent tag at the bottom of each C, for orientation
+  whiteKeyC: {
+    borderBottomWidth: 2,
+    borderBottomColor: colors.accentDim,
+  },
+  blackKey: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 1,
+    height: '62%',
+    backgroundColor: colors.blackKey,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#000',
   },
-  tick: {
-    flex: 1,
-    height: 16,
-    marginHorizontal: 0.5,
-    borderRadius: 1,
-    backgroundColor: '#2c2750',
-  },
-  tickC: { backgroundColor: colors.accentDim },
   window: {
     position: 'absolute',
     top: 0,

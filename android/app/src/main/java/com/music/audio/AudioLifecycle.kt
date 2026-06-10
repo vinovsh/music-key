@@ -19,10 +19,16 @@ object AudioLifecycle {
 
   private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
     when (change) {
+      // Real focus loss (another media app, or a phone call): release the stream
+      // and wait for AUDIOFOCUS_GAIN to rebuild it.
       AudioManager.AUDIOFOCUS_LOSS,
-      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> AudioEngineBridge.pause()
+      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> AudioEngineBridge.pause()
       AudioManager.AUDIOFOCUS_GAIN -> if (foreground) AudioEngineBridge.resume()
+      // "Can duck" = a transient ping (notification, nav voice). Android does NOT
+      // send a follow-up GAIN for ducking, so pausing here left the stream dead
+      // forever while the app stayed in front. Keep playing — a piano need not go
+      // silent for a notification chime. (This was the recurring "sound is gone".)
+      AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> { /* keep playing */ }
     }
   }
 
