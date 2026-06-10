@@ -39,12 +39,14 @@ export const useSoundRecorderStore = create<SoundRecorderState>((set, get) => ({
 
   stop: async () => {
     if (!get().isRecording) return;
+    // Flip UI state immediately so the button switches back to REC without
+    // waiting for the native stop + AAC encode (which can take a moment).
+    set({ isRecording: false, startedAt: 0 });
     try {
       await SoundRecorder.stop();
     } catch {
       // ignore
     }
-    set({ isRecording: false });
     await get().refresh();
   },
 }));
