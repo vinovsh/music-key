@@ -11,8 +11,8 @@ import { persist } from 'zustand/middleware';
 import { zustandStorage } from '../services/storage';
 import { whiteKeysInRange } from '../domain/notes';
 
-const FULL_LOW = 36; // C2
-const FULL_HIGH = 96; // C7
+const FULL_LOW = 21; // A0 — full 88-key piano (52 white + 36 black)
+const FULL_HIGH = 108; // C8
 
 // Stable list of every white key in the full range (used for windowing/minimap).
 export const FULL_WHITE_KEYS = whiteKeysInRange(FULL_LOW, FULL_HIGH);
@@ -43,8 +43,8 @@ function clampStart(start: number, visible: number): number {
 export const useKeyboardStore = create<KeyboardState>()(
   persist(
     (set, get) => ({
-      visibleWhite: 17, // ~C3..E5 by default, like the reference
-      windowStart: 7, // C3
+      visibleWhite: 15, // ~F3.. by default (slightly bigger keys)
+      windowStart: 19, // F3 (index into the full A0..C8 white-key list)
       fullscreen: false,
 
       zoomIn: () =>
@@ -60,7 +60,7 @@ export const useKeyboardStore = create<KeyboardState>()(
       setWindowStart: (i) => {
         // Skip no-op moves: the window snaps to integer white-key steps, so a
         // drag fires this ~60×/s but most land on the same index. Bailing out
-        // avoids a needless re-render + AsyncStorage write per move (the lag).
+        // avoids a needless re-render per move (the lag).
         const { windowStart, visibleWhite } = get();
         const next = clampStart(Math.round(i), visibleWhite);
         if (next !== windowStart) set({ windowStart: next });
@@ -70,8 +70,9 @@ export const useKeyboardStore = create<KeyboardState>()(
     {
       name: 'keyboard',
       storage: zustandStorage,
-      // Persist zoom + window position, but always start non-fullscreen.
-      partialize: (s) => ({ visibleWhite: s.visibleWhite, windowStart: s.windowStart }),
+      // Remember the zoom (key size) only; the window always opens at F3 and
+      // non-fullscreen.
+      partialize: (s) => ({ visibleWhite: s.visibleWhite }),
     },
   ),
 );
