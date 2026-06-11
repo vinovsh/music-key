@@ -5,7 +5,13 @@
 import { create } from 'zustand';
 import * as songPlayer from '../audio/songPlayer';
 import { SONGS, songById } from '../domain/songs';
+import { userSongById } from './userSongsStore';
 import { useSettingsStore } from './settingsStore';
+
+// Resolve a song id across both the built-in catalogue and uploaded songs.
+function resolveSong(id: string) {
+  return userSongById(id) ?? songById(id);
+}
 
 interface PlaybackState {
   isPlaying: boolean;
@@ -31,7 +37,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
       get().stop();
       return;
     }
-    const song = songById(get().selectedId);
+    const song = resolveSong(get().selectedId);
     const speed = useSettingsStore.getState().speed;
     set({ isPlaying: true });
     songPlayer.play(song, {

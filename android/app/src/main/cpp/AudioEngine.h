@@ -45,6 +45,7 @@ class AudioEngine : public oboe::AudioStreamDataCallback,
   void noteOff(int key) { synth_.noteOff(key); }
   void setProgram(int presetNumber) { synth_.setProgram(presetNumber); }
   void setSustain(bool on) { synth_.setSustain(on); }
+  void allSoundOff() { synth_.allSoundOff(); }
   void setMasterGain(float gain) { synth_.setMasterGain(gain); }
   void setReleaseTime(float sec) { synth_.setReleaseTime(sec); }
 

@@ -6,7 +6,7 @@
  * Reports the set of currently-sounding notes via onActive for key highlighting.
  * Auto-play is not latency-critical, so timer-based scheduling is fine.
  */
-import { noteOn, noteOff } from './audio';
+import { noteOn, noteOff, allSoundOff } from './audio';
 import type { Song } from '../domain/song';
 
 interface PlayOpts {
@@ -54,6 +54,9 @@ export function play(song: Song, opts: PlayOpts): void {
 export function stop(): void {
   clearTimers();
   releaseAll();
+  // Hard-cut any voices still ringing (sustain/long ring-out) so playback halts
+  // at once, whether the song was stopped or ended on its own.
+  allSoundOff();
   if (endTimer !== null) {
     clearTimeout(endTimer);
     endTimer = null;
@@ -65,6 +68,7 @@ export function stop(): void {
 function finish(): void {
   clearTimers();
   releaseAll();
+  allSoundOff();
   endTimer = null;
   emit();
   fireDone();

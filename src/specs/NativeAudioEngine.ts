@@ -28,6 +28,12 @@ export interface Spec extends TurboModule {
    * on note-off, so "Ring time" controls the fade-out for any instrument.
    */
   setReleaseTime(seconds: number): void;
+  /**
+   * Panic / hard stop: immediately silence every sounding voice, ignoring the
+   * sustain pedal and ring-out release. Unlike noteOff (which starts a fade),
+   * this cuts the sound at once — used by Stop so playback halts instantly.
+   */
+  allSoundOff(): void;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('NativeAudioEngine');

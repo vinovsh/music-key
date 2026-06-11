@@ -99,6 +99,14 @@ void SynthEngine::drainEvents(tsf* f) {
       case EventType::Sustain:
         tsf_channel_set_sustain(f, 0, e.i0);
         break;
+      case EventType::AllOff:
+        // Quick-release every voice on channel 0, overriding the sustain pedal
+        // and the "Ring time" release so Stop silences the song immediately.
+        // Audio-thread safe: tsf_voice_endquick only touches pre-allocated
+        // voices (no alloc/lock/JNI/log). Leaves the channel's sustain flag
+        // untouched so it stays in sync with the UI's pedal toggle.
+        tsf_channel_sounds_off_all(f, 0);
+        break;
     }
   }
   head_.store(head, std::memory_order_release);
@@ -118,6 +126,10 @@ void SynthEngine::setProgram(int presetNumber) {
 
 void SynthEngine::setSustain(bool on) {
   pushEvent(Event{EventType::Sustain, on ? 1 : 0, 0.0f});
+}
+
+void SynthEngine::allSoundOff() {
+  pushEvent(Event{EventType::AllOff, 0, 0.0f});
 }
 
 void SynthEngine::render(float* out, int numFrames, int channelCount) {

@@ -27,6 +27,7 @@ class NativeAudioEngine
   void setProgram(jsi::Runtime& rt, double preset);
   void setSustain(jsi::Runtime& rt, bool on);
   void setReleaseTime(jsi::Runtime& rt, double seconds);
+  void allSoundOff(jsi::Runtime& rt);
 };
 
 } // namespace facebook::react

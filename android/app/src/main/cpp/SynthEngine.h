@@ -50,6 +50,10 @@ class SynthEngine {
   void noteOff(int key);
   void setProgram(int presetNumber);
   void setSustain(bool on);
+  // Panic / hard stop: immediately silence every sounding voice, ignoring the
+  // sustain pedal and "Ring time" (unlike noteOff, which only starts a release
+  // fade). Used by Stop so playback halts instantly. Lock-free; never blocks.
+  void allSoundOff();
   void setMasterGain(float gain) {  // 0..1 (linear)
     masterGain_.store(gain, std::memory_order_relaxed);
   }
@@ -66,7 +70,7 @@ class SynthEngine {
   void render(float* out, int numFrames, int channelCount);
 
  private:
-  enum class EventType : uint8_t { NoteOn, NoteOff, Program, Sustain };
+  enum class EventType : uint8_t { NoteOn, NoteOff, Program, Sustain, AllOff };
   struct Event {
     EventType type;
     int i0;    // key / preset number

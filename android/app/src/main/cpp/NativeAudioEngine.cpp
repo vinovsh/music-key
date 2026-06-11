@@ -36,4 +36,8 @@ void NativeAudioEngine::setReleaseTime(jsi::Runtime& /*rt*/, double seconds) {
   AudioEngine::instance().setReleaseTime(static_cast<float>(seconds));
 }
 
+void NativeAudioEngine::allSoundOff(jsi::Runtime& /*rt*/) {
+  AudioEngine::instance().allSoundOff();
+}
+
 } // namespace facebook::react

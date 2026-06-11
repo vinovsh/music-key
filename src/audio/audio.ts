@@ -36,3 +36,11 @@ export function setSustain(on: boolean): void {
 export function setReleaseTime(seconds: number): void {
   NativeAudioEngine.setReleaseTime(seconds);
 }
+
+/**
+ * Panic / hard stop: silence every sounding voice immediately, ignoring sustain
+ * and ring-out. Use to halt playback at once (Stop), not for normal note-off.
+ */
+export function allSoundOff(): void {
+  NativeAudioEngine.allSoundOff();
+}
