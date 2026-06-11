@@ -1,8 +1,10 @@
 #pragma once
 
 #include <oboe/Oboe.h>
+#include <oboe/LatencyTuner.h>
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 
@@ -69,6 +71,11 @@ class AudioEngine : public oboe::AudioStreamDataCallback,
 
   std::mutex streamMutex_;  // guards open/start/stop (never locked on RT thread)
   std::shared_ptr<oboe::AudioStream> stream_;
+  // Adaptive buffer sizing: tune() runs in the audio callback and grows the
+  // buffer (in burst steps) when underruns occur, so dense two-handed play with
+  // long ring-out tails stops glitching, while latency stays minimal when idle.
+  // Created/destroyed alongside the stream under streamMutex_ (no live callback).
+  std::unique_ptr<oboe::LatencyTuner> latencyTuner_;
   SynthEngine synth_;
   PcmRecorder pcmRecorder_;
 };

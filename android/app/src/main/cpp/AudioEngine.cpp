@@ -27,8 +27,10 @@ bool AudioEngine::openStream() {
   // Hand the actual device rate to the synth before any rendering happens.
   synth_.setSampleRate(stream_->getSampleRate());
 
-  // Aim for low latency: 2 bursts. Oboe clamps to device capacity.
+  // Start low-latency at 2 bursts; the LatencyTuner grows this automatically if
+  // the device underruns under load. Oboe clamps to device capacity.
   stream_->setBufferSizeInFrames(stream_->getFramesPerBurst() * 2);
+  latencyTuner_ = std::make_unique<oboe::LatencyTuner>(*stream_);
   return true;
 }
 
@@ -48,6 +50,7 @@ void AudioEngine::stop() {
     stream_->stop();
     stream_->close();
     stream_.reset();
+    latencyTuner_.reset();  // stream is stopped: no callback can be running
   }
 }
 
@@ -75,6 +78,11 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(
     void* audioData,
     int32_t numFrames) {
   // REAL-TIME THREAD — see CLAUDE.md §2.
+  // Adaptive buffer sizing: lightweight, callback-safe (no alloc/lock/JNI/log).
+  // Reads the stream's XRun count and nudges the buffer size to avoid glitches.
+  if (latencyTuner_) {
+    latencyTuner_->tune();
+  }
   const int channelCount = stream->getChannelCount();
   auto* out = static_cast<float*>(audioData);
   synth_.render(out, numFrames, channelCount);

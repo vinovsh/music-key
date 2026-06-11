@@ -163,6 +163,9 @@ function Keyboard({ notation }: Props) {
   const pointerMap = useRef<Map<number, { visual: number; sound: number }>>(new Map());
   // sounding pitch -> how many fingers are holding it (ref-counted note on/off)
   const noteCounts = useRef<Map<number, number>>(new Map());
+  // Mirror of the `active` glow set, read synchronously by refreshGlow to skip
+  // no-op state updates (setActive is async, so we can't read `active` directly).
+  const activeRef = useRef<ReadonlySet<number>>(active);
 
   // Fixed key width so `visibleWhite` keys fill the viewport; the full row is
   // wider than the viewport and gets translated to scroll.
@@ -243,6 +246,18 @@ function Keyboard({ notation }: Props) {
     // Glow = the visual keys currently held by any pointer.
     const visuals = new Set<number>();
     for (const p of pointerMap.current.values()) visuals.add(p.visual);
+    // Skip the state update (and the 88-key re-render it triggers) when the lit
+    // set is unchanged. onResponderMove fires ~60-120×/s while a finger stays on
+    // the same key; without this guard every one of those events re-rendered the
+    // keyboard, backing up the JS thread → input lag + late noteOn/noteOff. We
+    // compare against the live `active` set via a ref so this stays a stable cb.
+    const prev = activeRef.current;
+    if (prev.size === visuals.size) {
+      let same = true;
+      for (const m of visuals) if (!prev.has(m)) { same = false; break; }
+      if (same) return;
+    }
+    activeRef.current = visuals;
     setActive(visuals);
   }, []);
 
