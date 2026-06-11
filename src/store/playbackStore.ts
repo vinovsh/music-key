@@ -20,6 +20,9 @@ interface PlaybackState {
   setSong: (id: string) => void;
   toggle: () => void;
   stop: () => void;
+  // Set the highlighted notes directly. Used by other auto-players (e.g. the
+  // "RECORD KEYS" replay) so their notes light up on the keyboards too.
+  setActive: (active: ReadonlySet<number>) => void;
 }
 
 export const usePlaybackStore = create<PlaybackState>((set, get) => ({
@@ -51,4 +54,6 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => ({
     songPlayer.stop();
     set({ isPlaying: false, active: new Set() });
   },
+
+  setActive: (active) => set({ active }),
 }));

@@ -24,6 +24,8 @@ import {
   useKeyboardStore,
 } from '../../store/keyboardStore';
 import { scrollActive, scrollIndex } from '../../store/keyboardScroll';
+import { useLiveNotesStore } from '../../store/liveNotesStore';
+import { usePlaybackStore } from '../../store/playbackStore';
 import { isC } from '../../domain/notes';
 import { colors } from '../../theme/colors';
 
@@ -42,6 +44,54 @@ const MINI_BLACKS: { midi: number; leftPct: number }[] = (() => {
   }
   return out;
 })();
+
+// midi -> position on the strip, so the live-press overlay can place a marker
+// over the exact key (white = full height, black = upper 62%, like the keys).
+const WHITE_PCT = 100 / TOTAL_WHITE; // one white key's share of the strip width
+const WHITE_FILL = 0.6; // marker covers 60% of the key, centred (slim indicator)
+const KEY_POS: Record<number, { leftPct: number; widthPct: number; black: boolean }> = (() => {
+  const m: Record<number, { leftPct: number; widthPct: number; black: boolean }> = {};
+  FULL_WHITE_KEYS.forEach((midi, i) => {
+    m[midi] = {
+      leftPct: i * WHITE_PCT + (WHITE_PCT * (1 - WHITE_FILL)) / 2, // centre the bar
+      widthPct: WHITE_PCT * WHITE_FILL,
+      black: false,
+    };
+  });
+  for (const b of MINI_BLACKS) {
+    m[b.midi] = { leftPct: b.leftPct, widthPct: BLACK_W_PCT, black: true };
+  }
+  return m;
+})();
+
+/**
+ * Overlay that lights up the keys currently held on the main keyboard. Subscribes
+ * to the live-notes store on its own so MiniKeyboard's gesture parent never
+ * re-renders on a keypress (which would recreate the pan gesture every note).
+ */
+const MiniPressHighlight = React.memo(function MiniPressHighlight() {
+  const touch = useLiveNotesStore((s) => s.active); // your live key presses
+  const auto = usePlaybackStore((s) => s.active); // song / recording auto-play
+  if (touch.size === 0 && auto.size === 0) return null;
+  const active = touch.size === 0 ? auto : auto.size === 0 ? touch : new Set([...touch, ...auto]);
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {[...active].map((midi) => {
+        const p = KEY_POS[midi];
+        if (!p) return null;
+        return (
+          <View
+            key={midi}
+            style={[
+              styles.press,
+              { left: `${p.leftPct}%`, width: `${p.widthPct}%`, height: p.black ? '62%' : '100%' },
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+});
 
 // Touch x → leftmost-white-key index of the window, centred on the finger.
 function startFromTouch(x: number, w: number, visible: number): number {
@@ -130,6 +180,8 @@ function MiniKeyboard() {
             />
           ))}
         </View>
+        {/* live press highlights (mirrors the keys you're holding) */}
+        <MiniPressHighlight />
         {/* current window highlight (driven on the UI thread) */}
         <Animated.View pointerEvents="none" style={[styles.window, windowStyle]} />
       </View>
@@ -181,6 +233,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.accent,
     borderRadius: 6,
+  },
+  // marker shown over a key on the strip while it's pressed on the main keyboard
+  press: {
+    position: 'absolute',
+    top: 0,
+    backgroundColor: colors.accent,
+    borderRadius: 1.5,
   },
 });
 

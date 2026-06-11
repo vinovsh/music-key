@@ -6,6 +6,7 @@
  * sounding notes so stop/finish can release everything cleanly.
  */
 import { noteOn, noteOff } from './audio';
+import { usePlaybackStore } from '../store/playbackStore';
 import type { Recording } from '../domain/recording';
 
 let timers: ReturnType<typeof setTimeout>[] = [];
@@ -30,6 +31,7 @@ export function playRecording(rec: Recording, onDone?: () => void): void {
         noteOff(e.midi);
         sounding.delete(e.midi);
       }
+      emit(); // light up the played notes on both keyboards
     }, e.t);
     timers.push(id);
   }
@@ -62,6 +64,11 @@ function clearTimers(): void {
 function releaseAll(): void {
   for (const m of sounding) noteOff(m);
   sounding.clear();
+  emit(); // clear the highlight
+}
+
+function emit(): void {
+  usePlaybackStore.getState().setActive(new Set(sounding));
 }
 
 function fireDone(): void {

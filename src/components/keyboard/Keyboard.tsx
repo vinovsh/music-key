@@ -46,6 +46,7 @@ import {
   useKeyboardStore,
 } from '../../store/keyboardStore';
 import { scrollIndex } from '../../store/keyboardScroll';
+import { useLiveNotesStore } from '../../store/liveNotesStore';
 import { colors } from '../../theme/colors';
 import { isC, noteLabel, type Notation } from '../../domain/notes';
 
@@ -259,6 +260,8 @@ function Keyboard({ notation }: Props) {
     }
     activeRef.current = visuals;
     setActive(visuals);
+    // Publish to the mini-keyboard overview so it can highlight where you press.
+    useLiveNotesStore.getState().setActive(visuals);
   }, []);
 
   // Reconcile our pointer map against the authoritative live touch list.
@@ -382,8 +385,10 @@ const styles = StyleSheet.create({
   whiteKey: {
     height: '100%',
     backgroundColor: colors.keyboardBg,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.whiteKeyShadow,
+    // Dark recess between adjacent white keys — reads as a real gap/shadow, not
+    // a pale line. Uses the keyboard-well colour so the keys look seated in it.
+    borderRightWidth: 2,
+    borderColor: colors.keyboardBg,
   },
   whiteFace: {
     flex: 1,
@@ -405,7 +410,10 @@ const styles = StyleSheet.create({
     right: 0,
     height: '42%',
     backgroundColor: '#ffffff',
-    opacity: 0.55,
+    // Low opacity so the band's bottom edge doesn't read as a hard line across
+    // every key (we can't feather without a gradient lib / extra views). Keeps a
+    // faint top gloss; the key is already near-white so this is enough.
+    opacity: 0.18,
   },
   // bottom front lip: a slightly darker rounded strip = the front face of the key
   whiteLip: {
@@ -417,7 +425,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.whiteKeyShadow,
     borderBottomLeftRadius: 6,
     borderBottomRightRadius: 6,
-    opacity: 0.7,
+    // Softer than before so the lip's top edge no longer reads as a hard gray
+    // line across the keys, while still giving the front-face depth cue.
+    opacity: 0.35,
   },
   // accent bloom shown while held
   whiteGlow: {
