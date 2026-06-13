@@ -48,6 +48,7 @@ import {
 import { scrollIndex } from '../../store/keyboardScroll';
 import { useLiveNotesStore } from '../../store/liveNotesStore';
 import { colors } from '../../theme/colors';
+import { clamp as clampN } from '../../theme/responsive';
 import { isC, noteLabel, type Notation } from '../../domain/notes';
 
 const BLACK_WIDTH_RATIO = 0.62; // black key width relative to a white key
@@ -111,7 +112,11 @@ const WhiteKey = React.memo(function WhiteKey({
         <Animated.View style={[styles.whiteGlow, glowStyle]} pointerEvents="none" />
         {showLabel && (
           <Text
-            style={[styles.whiteLabel, isCKey && styles.cLabel]}
+            style={[
+              styles.whiteLabel,
+              { fontSize: clampN(width * 0.26, 9, 20) }, // scale with key width
+              isCKey && styles.cLabel,
+            ]}
             numberOfLines={1}>
             {label}
           </Text>

@@ -18,11 +18,14 @@ import SoundRecordButton from '../components/transport/SoundRecordButton';
 import RecordingsModal from '../components/recordings/RecordingsModal';
 import SettingsModal from '../components/settings/SettingsModal';
 import AdBanner from '../components/ads/AdBanner';
+import SplashCover from '../components/SplashCover';
+import { useAppHydrated } from '../store/useHydrated';
 import { useSettingsStore } from '../store/settingsStore';
 import { useInstrumentStore } from '../store/instrumentStore';
 import { useKeyboardStore } from '../store/keyboardStore';
 import { setMasterGain } from '../audio/audio';
 import { colors } from '../theme/colors';
+import { rs } from '../theme/responsive';
 
 function PlayerScreen() {
   const insets = useSafeAreaInsets();
@@ -32,6 +35,7 @@ function PlayerScreen() {
   // The keyboard now reads zoom + scroll itself, so PlayerScreen no longer
   // re-renders as the window moves — only fullscreen affects this layout.
   const fullscreen = useKeyboardStore((s) => s.fullscreen);
+  const hydrated = useAppHydrated();
 
   const [recordingsOpen, setRecordingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -136,6 +140,10 @@ function PlayerScreen() {
         onClose={() => setRecordingsOpen(false)}
       />
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Held over the UI at launch until saved settings load, so the screen
+          appears fully formed instead of jumping from defaults. */}
+      <SplashCover visible={!hydrated} />
     </View>
   );
 }
@@ -152,14 +160,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 12,
   },
-  listBtnText: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  listBtnText: { color: colors.textDim, fontSize: rs(12), fontWeight: '800', letterSpacing: 1 },
   recBtnWrap: { marginRight: 10 },
   instrumentsWrap: { marginRight: 12 },
   topBarSpacer: { flex: 1 },
   songControlWrap: { marginLeft: 12 },
   gearBtn: {
-    width: 38,
-    height: 38,
+    width: rs(38),
+    height: rs(38),
     borderRadius: 10,
     backgroundColor: colors.panel,
     borderWidth: 1,
@@ -168,7 +176,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 10,
   },
-  gearText: { color: colors.textDim, fontSize: 18 },
+  gearText: { color: colors.textDim, fontSize: rs(18) },
 
   navStrip: {
     flexDirection: 'row',
@@ -189,7 +197,7 @@ const styles = StyleSheet.create({
   },
   seqCaption: {
     color: colors.textFaint,
-    fontSize: 10,
+    fontSize: rs(10),
     fontWeight: '700',
     letterSpacing: 1,
     marginBottom: 5,
@@ -197,8 +205,8 @@ const styles = StyleSheet.create({
   seqRow: { flexDirection: 'row', alignItems: 'center' },
   miniWrap: { flex: 1, marginHorizontal: 8 },
   seqArrow: {
-    width: 28,
-    height: 30,
+    width: rs(28),
+    height: rs(30),
     borderRadius: 8,
     backgroundColor: colors.keyboardBg,
     borderWidth: 1,
@@ -206,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  seqArrowText: { color: colors.text, fontSize: 18, fontWeight: '800', lineHeight: 20 },
+  seqArrowText: { color: colors.text, fontSize: rs(18), fontWeight: '800', lineHeight: rs(20) },
   zoomWrap: { marginLeft: 10 },
   notationWrap: { marginLeft: 10 },
 
